@@ -4,7 +4,7 @@
 **
 ** Part of willus.com general purpose C code library.
 **
-** Copyright (C) 2017  http://willus.com
+** Copyright (C) 2020  http://willus.com
 **
 ** This program is free software: you can redistribute it and/or modify
 ** it under the terms of the GNU Affero General Public License as
@@ -208,7 +208,8 @@ int willusgui_open_file(char *filename)
     char pwd[512];
     int procnum;
 
-    if (strnicmp(filename,"http://",7) && wfile_status(filename)==0)
+    if (strnicmp(filename,"http://",7) && strnicmp(filename,"https://",8) 
+            && wfile_status(filename)==0)
         {
         char *message;
         int len;
@@ -836,6 +837,7 @@ printf("width=%d\n",control->rect.right-control->rect.left-h-1);
             break;
         case WILLUSGUICONTROL_TYPE_SCROLLABLEBITMAP:
         case WILLUSGUICONTROL_TYPE_BITMAP:
+        case WILLUSGUICONTROL_TYPE_BITMAP_CROP:
             {
             static int need_new_class=1;
             static char *sbclass="ScrollableBitmap";
@@ -878,7 +880,8 @@ printf("width=%d\n",control->rect.right-control->rect.left-h-1);
                                    control->parent->handle,(HMENU)(size_t)(control->index),
                                    (HINSTANCE)willusgui_global_instance,NULL);
             SendMessage(control->handle,WM_SETFONT,(WPARAM)control->font.handle,1);
-            if (control->type==WILLUSGUICONTROL_TYPE_BITMAP)
+            if (control->type==WILLUSGUICONTROL_TYPE_BITMAP
+                 || control->type==WILLUSGUICONTROL_TYPE_BITMAP_CROP)
                 control->timer_id=SetTimer(control->handle,0,20,NULL);
             }
             break;
@@ -1141,6 +1144,7 @@ printf("    fontsize=%d\n",(int)fontsize_pixels);
 printf("    maxwidth=%d\n",(int)maxwidth_pixels);
 printf("    color=%06X\n",rgbcolor);
 printf("    left,right,top,bottom=%d,%d,%d,%d\n",
+printf("willusgui_message_box: parent=%p, handle=%p\n",parent,parent->handle);
 */
     return(winmbox_message_box_ex2((HWND)(parent==NULL?GetDesktopWindow():parent->handle),
                                title,message,
@@ -1211,7 +1215,8 @@ int  willusgui_control_close(WILLUSGUICONTROL *control)
     if (control->timer_id!=0)
         KillTimer((HWND)control->handle,control->timer_id);
     if (control->type == WILLUSGUICONTROL_TYPE_SCROLLABLEBITMAP
-          || control->type == WILLUSGUICONTROL_TYPE_BITMAP)
+          || control->type == WILLUSGUICONTROL_TYPE_BITMAP
+          || control->type == WILLUSGUICONTROL_TYPE_BITMAP_CROP)
         SendMessage((HWND)control->handle,WM_CLOSE,0,0);
     else
         {
@@ -1466,9 +1471,16 @@ int willusgui_control_listbox_get_selected_items_count(WILLUSGUICONTROL *control
                                                          int maxsel)
 
     {
+#ifdef MSWINGUI
+    int n;
+#endif
+
     if (control->type != WILLUSGUICONTROL_TYPE_LISTBOX)
         return(-1);
 #ifdef MSWINGUI
+    n=SendMessage((HWND)control->handle,LB_GETSELCOUNT,0,0);
+    if (n==0)
+        return(0);
     return(SendMessage((HWND)control->handle,LB_GETSELITEMS,maxsel,(LPARAM)selected_indices));
 #else
     return(0);
@@ -2071,7 +2083,7 @@ printf("    sbitmap_size = %d\n",control->sbitmap_size);
 printf("rr=%g\n",rr);
 */
     /* For normal bitmap, fit to window */
-    if (control->type==WILLUSGUICONTROL_TYPE_BITMAP)
+    if (control->type==WILLUSGUICONTROL_TYPE_BITMAP || control->type==WILLUSGUICONTROL_TYPE_BITMAP_CROP)
         {
         w = src->width/rr+.5;
         h = src->height/rr+.5;
@@ -2196,8 +2208,12 @@ LRESULT CALLBACK willusgui_sbitmap_proc_internal(HWND hwnd,UINT message,WPARAM w
     static int yMaxScroll=0;       /* maximum vertical scroll value    */
     static int buttondown=0;
     static int mx0,my0,mx,my;
+    static int lcdown=0; /* Left control mouse down state */
+    static int rcdown=0; /* Right control mouse down state */
+    static int lsdown=0; /* Left shift mouse down state */
+    static int rsdown=0; /* Right shift mouse down state */
     int x0,y0,w0,h0;
-    int hscroll,vscroll,scrollable;
+    int hscroll,vscroll,scrollable,crop;
     WILLUSGUICONTROL *control;
     WILLUSGUIRECT rect0;
 	
@@ -2214,6 +2230,7 @@ printf("@willusgui_sbitmap_proc...message=0x%04x\n",message);
         }
 
     scrollable = (control->type==WILLUSGUICONTROL_TYPE_SCROLLABLEBITMAP);
+    crop = (control->type==WILLUSGUICONTROL_TYPE_BITMAP_CROP);
     /* Get upper-left corner of bitmap for cropping */
     {
     willusgui_window_get_useable_rect(control,&rect0);
@@ -2284,7 +2301,7 @@ printf("hscroll=%d, vscroll=%d\n",hscroll,vscroll);
             { 
             PRECT prect; 
             PAINTSTRUCT ps;
-            int w,h,x1,y1;
+            int w,h,x1,y1,dx,dy;
 /*
 printf("@sbitmap WM_PAINT.\n");
 */
@@ -2298,8 +2315,16 @@ printf("@sbitmap WM_PAINT.\n");
             */
             w=prect->right-prect->left+1;
             h=prect->bottom-prect->top+1;
-            x1 = hscroll ? prect->left : prect->left + (w-control->bmp.width)/2;
-            y1 = vscroll ? prect->top : prect->top + (h-control->bmp.height)/2;
+            
+            dx=(w-control->bmp.width)/2;
+            dy=(h-control->bmp.height)/2;
+            x1 = hscroll ? prect->left : prect->left + dx;
+            y1 = vscroll ? prect->top : prect->top + dy;
+            if (crop)
+                {
+                control->labelx=dx;
+                control->labely=dy;
+                }
             /* Back fill with gray */
             if (x1!=prect->left || y1!=prect->top)
                  {
@@ -2420,6 +2445,11 @@ printf("    xscr,yscr = %d,%d\n",xCurrentScroll,yCurrentScroll);
 
         case WM_LBUTTONDOWN:
             {
+            if (crop)
+                {
+                lcdown=((GetKeyState(VK_LCONTROL)<0 || GetKeyState(VK_RCONTROL)<0));
+                lsdown=((GetKeyState(VK_LSHIFT)<0 || GetKeyState(VK_RSHIFT)<0));
+                }
             if (scrollable)
                 {
                 buttondown |= 1;
@@ -2485,6 +2515,11 @@ printf("    xscr,yscr = %d,%d\n",xCurrentScroll,yCurrentScroll);
             int kshift,kctrl;
             WILLUSGUIRECT newrect;
 
+            if (crop)
+                {
+                SendMessage((HWND)control->parent->handle,message,wParam,lParam);
+                return(0);
+                }
             if (scrollable || control->rectmarked.left < -9000)
                 break;
             kshift=GetKeyState(VK_SHIFT);
@@ -2557,19 +2592,28 @@ printf("    xscr,yscr = %d,%d\n",xCurrentScroll,yCurrentScroll);
                     }
                 return(0);
                 }
+            if (crop)
+                {
+                SendMessage((HWND)control->parent->handle,message,wParam,lParam);
+                return(0);
+                }
             break;
             }
         case WM_TIMER:
             {
             POINT p;
-            int down,curstype;
+            int rdown,down,curstype;
 
             if (scrollable)
                 return(0);
             GetCursorPos(&p); /* Get mouse pos in screen coords */
             MapWindowPoints(NULL,hwnd,&p,1);
             down=GetKeyState(VK_LBUTTON);
-            curstype=willusguirect_cursor_type(&control->rectmarked,&control->rect,p.x,p.y);
+            rdown=GetKeyState(VK_RBUTTON);
+            if (!crop)
+                curstype=willusguirect_cursor_type(&control->rectmarked,&control->rect,p.x,p.y);
+            else
+                curstype=0;
 /*
 printf("ct=%d (%d,%d,%d,%d) (%d,%d,%d,%d) %d,%d\n",
 curstype,
@@ -2593,6 +2637,33 @@ ct=curstype;
 }
 }
 */
+            /* Check for button just lifted */
+            if (crop)
+                {
+                if ((!(down&128) && control->labeljust==1)
+                     || (!(rdown&128) && control->labeljust==2))
+                    {
+                    int wp,cdown,sdown;
+                    wp=control->labeljust==1 ? 10 : 11;
+                    control->labeljust=0;
+                    willusgui_window_draw_rect_outline(control,&control->rectmarked,-1);
+                    cdown=(GetKeyState(VK_LCONTROL)<0 || GetKeyState(VK_RCONTROL)<0);
+                    sdown=(GetKeyState(VK_LSHIFT)<0 || GetKeyState(VK_RSHIFT)<0);
+                    if (!cdown)
+                        {
+                        if (sdown && (rsdown || lsdown))
+                            wp+=4;
+                        SendMessage((HWND)control->parent->handle,WM_COMMAND,wp,0);
+                        }
+                    rsdown=lsdown=0;
+                    control->anchor.left=-10000;
+                    control->rectmarked.left=-10000;
+                    control->rectmarked.right=-10000;
+                    control->crosshair.left=-10000;
+                    control->rdcount=0;
+                    return(0);
+                    }
+                }
             willusgui_set_cursor(curstype>0 ? curstype+1 : 0);
             if (control->crosshair.left > -9000)
                 {
@@ -2607,10 +2678,11 @@ ct=curstype;
                 }
       
             /* Left button down */
-            if (down&128)
+            if (down&128 || (crop && (rdown&128)))
                 {
                 char buf[256];
 
+                /* No crop box started yet */
                 if (control->anchor.left < -9999)
                     {
 /*
@@ -2619,8 +2691,11 @@ printf("Just clicked, curstype=%d\n",curstype);
                     /* Click outside the window doesn't start anything. */
                     if (p.x<x0 || p.x>x0+w0-1 || p.y<y0 || p.y>y0+h0-1)
                         return(0);
+                    /* Start an anchor */
                     control->anchor.left=p.x;
                     control->anchor.top=p.y;
+                    /* Use label justification as type -- left or right-dragged */
+                    control->labeljust = (down&128) ? 1 : 2;
                     if (control->rectmarked.left < -9999)
                         control->anchor.right = 0;
                     else
@@ -2860,6 +2935,33 @@ printf("sbitmap MOUSEMOVE.\n");
             {
             int x,y;
 
+            if (crop && (lcdown || lsdown))
+                {
+                /* This is handled in timer routine */
+                /*
+                if (lsdown)
+                    {
+                    lsdown=((GetKeyState(VK_LSHIFT)<0 || GetKeyState(VK_RSHIFT)<0));
+                    if (lsdown)
+                        {
+                        lsdown=lcdown=0;
+                        SendMessage((HWND)control->parent->handle,WM_COMMAND,13,lParam);
+                        return(0);
+                        }
+                    }
+                */
+                if (lcdown)
+                    {
+                    lcdown=((GetKeyState(VK_LCONTROL)<0 || GetKeyState(VK_RCONTROL)<0));
+                    if (lcdown)
+                        {
+                        lcdown=lsdown=0;
+                        SendMessage((HWND)control->parent->handle,WM_COMMAND,12,lParam);
+                        return(0);
+                        }
+                    }
+                }
+            lcdown=0;
             if (scrollable)
                 {
                 x=LOWORD(lParam);
@@ -2877,9 +2979,14 @@ printf("sbitmap MOUSEMOVE.\n");
             return(0);
             }
         case WM_RBUTTONDOWN:
+            if (crop)
+                {
+                rcdown=((GetKeyState(VK_LCONTROL)<0 || GetKeyState(VK_RCONTROL)<0));
+                rsdown=((GetKeyState(VK_LSHIFT)<0 || GetKeyState(VK_RSHIFT)<0));
+                }
             if (scrollable)
                 buttondown |= 2;
-            else
+            else if (!crop)
                 {
                 static int bcolors[3]={0x60b060,0xe0ffe0,0xe0ffe0};
                 static char *help=
@@ -2901,9 +3008,38 @@ printf("sbitmap MOUSEMOVE.\n");
                     control->anchor.right=2;
                     }
                 }
-             */
+            */
+            else
+                break;
             return(0);
         case WM_RBUTTONUP:
+            if (crop && (rcdown || rsdown))
+                {
+                /* This is handled in timer routine */
+                /*
+                if (rsdown)
+                    {
+                    rsdown=((GetKeyState(VK_LSHIFT)<0 || GetKeyState(VK_RSHIFT)<0));
+                    if (rsdown)
+                        {
+                        rsdown=rcdown=0;
+                        SendMessage((HWND)control->parent->handle,WM_COMMAND,15,lParam);
+                        return(0);
+                        }
+                    }
+                */
+                if (rcdown)
+                    {
+                    rcdown=((GetKeyState(VK_LCONTROL)<0 || GetKeyState(VK_RCONTROL)<0));
+                    if (rcdown)
+                        {
+                        rcdown=rsdown=0;
+                        SendMessage((HWND)control->parent->handle,WM_COMMAND,13,lParam);
+                        return(0);
+                        }
+                    }
+                }
+            rcdown=0;
             if (scrollable)
                 {
                 if (buttondown&2)

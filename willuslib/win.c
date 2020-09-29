@@ -3,7 +3,7 @@
 **
 ** Part of willus.com general purpose C code library.
 **
-** Copyright (C) 2016  http://willus.com
+** Copyright (C) 2019  http://willus.com
 **
 ** This program is free software: you can redistribute it and/or modify
 ** it under the terms of the GNU Affero General Public License as
@@ -52,6 +52,7 @@ static int get_desktop_directory_1(char *desktop,int maxlen,HKEY key_class,
 static int win_registry_search1(char *value,int maxlen,HKEY key_class,char *keyname,char *searchvalue,int recursive);
 static BOOL CALLBACK find_win_by_procid(HWND hwnd,LPARAM lp);
 static int win_adjust_privilege(void);
+static void cr_filter(char *s);
 
 static int windate_warn=1;
 
@@ -528,6 +529,18 @@ int win_setdir(char *directory)
     }
 
 
+wmetafile *win_emf_clipboard_ex(int type)
+
+    {
+    HENHMETAFILE    hemf;
+
+    if (!OpenClipboard(type==0?NULL:GetDesktopWindow()))
+        return(NULL);
+    hemf=(HENHMETAFILE)GetClipboardData(CF_ENHMETAFILE);
+    return((wmetafile *)hemf);
+    }
+
+
 /*
 ** Play a metafile into a bitmap.
 **
@@ -548,12 +561,17 @@ wmetafile *win_emf_clipboard(void)
     }
 
 
+int win_text_file_to_clipboard(char *filename,FILE *out)
+
+    {
+    return(win_text_file_to_clipboard_ex(filename,out,0));
+    }
 /*
 ** Followed example at this link:
 ** http://msdn.microsoft.com/library/default.asp?url=/library/en-us/winui/WinUI/WindowsUserInterface/DataExchange/Clipboard/UsingtheClipboard.asp#_win32_Copying_Information_to_the_Clipboard
 **
 */
-int win_text_file_to_clipboard(char *filename,FILE *out)
+int win_text_file_to_clipboard_ex(char *filename,FILE *out,int nocrs)
 
     {
     FILE *f;
@@ -587,6 +605,8 @@ int win_text_file_to_clipboard(char *filename,FILE *out)
         }
     fclose(f);
     p[size]='\0';
+    if (nocrs)
+        cr_filter(p);
     GlobalUnlock(buf);
     if (!OpenClipboard(GetDesktopWindow()))
         {
@@ -607,6 +627,26 @@ int win_text_file_to_clipboard(char *filename,FILE *out)
     willus_mem_free((double **)&buf,funcname);
     */
     return(0);
+    }
+
+
+static void cr_filter(char *s)
+
+    {
+    int i,j;
+
+    for (i=j=0;s[i]!='\0';i++)
+        {
+        if (s[i]=='\r')
+            continue;
+        if (s[i]=='\t')
+            s[j]=' ';
+        else
+            if (i!=j)
+                s[j]=s[i];
+        j++;
+        }
+    s[j]='\0';
     }
 
 
@@ -1521,6 +1561,7 @@ void win_set_mod_filetime(char *filename,struct tm *date)
     }
 
 
+#ifndef NO_FILELIST
 int win_most_recent_in_path(char *exactname,char *wildcard)
 
     {
@@ -1558,6 +1599,7 @@ int win_most_recent_in_path(char *exactname,char *wildcard)
         }
     return(exactname[0]!='\0');
     }
+#endif
 
 
 int win_which(char *exactname,char *exename)
@@ -2515,6 +2557,89 @@ void *win_shared_handle_utf8(char *filename)
     if (handle==INVALID_HANDLE_VALUE)
         return(NULL);
     return((void *)handle);
+    }
+
+
+/*
+**
+** Copy the .exe file to a temp folder and re-run it from that folder.
+** This allows you to auto-update the original .exe file that was run from within
+** the program itself.
+**
+** Problem:  Need to keep track of original .exe location!
+**
+** Typical use like so:
+**
+** int WINAPI WinMain(HINSTANCE hInstance,HINSTANCE hPrevInstance,
+**                    char *cmdline,int iCmdShow)
+**
+**      {
+**      if (win_relaunch(cmdline,iCmdShow))
+**          return(0);
+**      ...
+**      }
+**
+*/
+int win_relaunch(char *cmdline,int iCmdShow)
+
+    {
+    char  basename[512];
+    char  exename[512];
+    char  tmpname[512];
+    char  tmpfolder[512];
+    char  exefolder[512];
+    char  newexe[512];
+    char *p;
+    char *buf;
+    int  cmdlen;
+    STARTUPINFO si;
+    PROCESS_INFORMATION pi;
+    static char *funcname="win_relaunch";
+
+    win_full_exe_name(exename);
+    wfile_basepath(exefolder,exename);
+    wfile_abstmpnam(tmpname);
+    wfile_basepath(tmpfolder,tmpname);
+    if (!stricmp(tmpfolder,exefolder))
+        return(0);
+    wfile_basespec(basename,exename);
+    wfile_newext(basename,basename,"");
+    p=getenv("USERNAME");
+    if (p!=NULL)
+        {
+        int i;
+
+        i=in_string(basename,p);
+        if (i>0 && basename[i-1]=='_')
+            return(0);
+        strcat(basename,"_");
+        strcat(basename,p);
+        }
+    wfile_newext(basename,basename,"exe");
+    wfile_fullname(newexe,tmpfolder,basename);
+
+    /* Copy and launch */
+    if (!wfile_copy_file(newexe,exename,0))
+        return(0);
+
+    GetStartupInfo(&si);
+    cmdlen=strlen(newexe)+strlen(exename)+strlen(cmdline)+16;
+    willus_mem_alloc_warn((void **)&buf,cmdlen,funcname,10);
+    sprintf(buf,"\"%s\" \"%s\"",newexe,exename);
+    if (cmdline[0]!='\0')
+        sprintf(&buf[strlen(buf)]," %s",cmdline);
+    memset(&pi,0,sizeof(PROCESS_INFORMATION));
+    memset(&si,0,sizeof(STARTUPINFO));
+    si.cb = sizeof(STARTUPINFO);
+    si.dwX = 0; /* Ignored unless si.dwFlags |= STARTF_USEPOSITION */
+    si.dwY = 0;
+    si.dwXSize = 0; /* Ignored unless si.dwFlags |= STARTF_USESIZE */
+    si.dwYSize = 0;
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = iCmdShow;
+    /* Re-launch */
+    CreateProcess(newexe,buf,0,0,1,DETACHED_PROCESS,0,NULL,&si,&pi);
+    return(1);
     }
 
 

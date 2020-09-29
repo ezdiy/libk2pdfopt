@@ -41,9 +41,7 @@
 #include <sys/ioctl.h>
 #endif
 
-#ifdef ANDROID
-#include <asm/termios.h>
-#endif
+
 
 #ifdef WIN32
 #define ANSI_PARSE

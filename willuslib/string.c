@@ -3,7 +3,7 @@
 **
 ** Part of willus.com general purpose C code library.
 **
-** Copyright (C) 2016  http://willus.com
+** Copyright (C) 2020  http://willus.com
 **
 ** This program is free software: you can redistribute it and/or modify
 ** it under the terms of the GNU Affero General Public License as
@@ -28,6 +28,7 @@
 #include <math.h>
 #include "willus.h"
 
+static int delimiter_match(char *buf,int *index,char *delimiters);
 static int rest_pmdigits(char *s);
 static int rest_digits(char *s);
 static void year_adjust(int *year);
@@ -531,6 +532,82 @@ void comma_dprint(char *s,double size)
 
 
 /*
+** Read tab-delimited or comma-delimited or space-delimited strings.
+** If space is delimiter, multiple spaces allowed
+** Double-quoted strings preserve spaces or delimiters inside them
+** \0 or <\n or \r outside of a double-quote> terminates the line
+*/
+int string_read_strings(char *buf,char *arg[],int maxlen,char *delimit,int n)
+
+    {
+    int i,j;
+
+    for (j=i=0;i<n;i++)
+        {
+        int q,j0;
+
+        j0=0;
+        if (buf[j]=='\0' || buf[j]=='\r' || buf[j]=='\n')
+            break;
+        if (i==0 && delimiter_match(buf,&j,delimit))
+            {
+            arg[i][j0]='\0';
+            continue;
+            }
+        if (buf[j]=='\"')
+            {
+            q=1;
+            j++;
+            }
+        else
+            q=0;
+        for (j0=0;1;j++)
+            {
+            if (buf[j]=='\0' || (q==0 && (buf[j]=='\n' || buf[j]=='\r')))
+                break;
+            if (q==1 && buf[j]=='\"')
+                {
+                if (buf[j]=='\"')
+                    {
+                    j++;
+                    q=0;
+                    continue;
+                    }
+                if (j0<maxlen-1)
+                    arg[i][j0++]=buf[j];
+                continue;
+                }
+            if (delimiter_match(buf,&j,delimit))
+                break;
+            if (j0<maxlen-1)
+                arg[i][j0++]=buf[j];
+            }
+        arg[i][j0]='\0';
+        }
+    return(i);
+    }
+
+
+static int delimiter_match(char *buf,int *index,char *delimiters)
+
+    {
+    int k;
+
+    if (buf[(*index)]=='\0')
+        return(0);
+    for (k=0;delimiters[k]!='\0';k++)
+        if (buf[(*index)]==delimiters[k])
+            break;
+    if (delimiters[k]=='\0')
+        return(0);
+    (*index)=(*index)+1;
+    if (delimiters[k]==' ')
+        for (;buf[(*index)]==' ';(*index)=(*index)+1);
+    return(1);
+    }
+
+
+/*
 ** Caution:  buf cannot be constant char *.  It gets temporarily modified
 ** by this routine.
 */
@@ -938,6 +1015,10 @@ int structtm_from_datetime(struct tm *date,char *datetime)
 **     YYYY-MM-DD
 **     MM-DD-YYYY|YY [Default]
 **
+** Treats the following as white space:  / - \ . : ,
+**
+** 18 Sept 2018:  Treat comma a white space.
+**
 ** CAUTION!  This function zeros the time fields!
 */
 int structtm_from_date(struct tm *date,char *datestr)
@@ -958,7 +1039,7 @@ int structtm_from_date(struct tm *date,char *datestr)
     date->tm_mday=1;
     for (i=0;buf[i]!='\0';i++)
         if (buf[i]=='/' || buf[i]=='-' || buf[i]=='\\' 
-                        || buf[i]=='.' || buf[i]==':')
+                        || buf[i]=='.' || buf[i]==':' || buf[i]==',')
             buf[i]=' ';
     n=sscanf(buf,"%s %s %s",tok[0],tok[1],tok[2]);
     yr = -1;
@@ -1403,13 +1484,14 @@ int utf8_to_utf16(short *d,char *s,int maxlen)
 
 /*
 ** If d!=NULL, it gets populated w/unicode values
+** maxlen=-1 for no limit
 */
 int utf8_to_unicode(int *d,char *s,int maxlen)
 
     {
     int i,c;
 
-    for (i=c=0;c<maxlen && s[i]!='\0';i++)
+    for (i=c=0;(maxlen<0 || c<maxlen) && s[i]!='\0';i++)
         {
         int x,bits,topbyte;
 
@@ -1430,6 +1512,61 @@ int utf8_to_unicode(int *d,char *s,int maxlen)
         c++;
         }
     return(c);
+    }
+
+
+void utf8_vals_to_stream(char *s,FILE *out)
+
+    {
+    static char *funcname="utf8_vals_to_stream";
+    int i,n;
+    int *u;
+     
+    n=utf8_to_unicode(NULL,s,-1);
+    willus_mem_alloc_warn((void **)&u,sizeof(int)*n,funcname,10);
+    utf8_to_unicode(u,s,n);
+    for (i=0;i<n;i++)
+        fprintf(out,"[%d]",u[i]);
+    willus_mem_free((double **)&u,funcname);
+    }
+
+
+void clean_line_utf8(char *s)
+
+    {
+    static char *funcname="clean_line_utf8";
+    int *u;
+    int i,n0,n;
+
+    n=utf8_to_unicode(NULL,s,-1);
+    willus_mem_alloc_warn((void **)&u,sizeof(int)*n,funcname,10);
+    utf8_to_unicode(u,s,n);
+    n0=n;
+    clean_line_unicode(u,&n);
+    if (n<n0)
+        unicode_to_utf8(s,u,n);
+    willus_mem_free((double **)&u,funcname);
+    }
+
+
+void clean_line_unicode(int *u,int *n0)
+
+    {
+    int i,j,n;
+   
+    n=(*n0);
+    for (i=0;i<n && u[i]!='\n' && u[i]!='\r';i++);
+    for (i--;i>=0 && (u[i]==' ' || u[i]=='\t');i--);
+    n=i+1;
+    for (i=0;u[i]==' ' || u[i]=='\t';i++);
+    if (i)
+        {
+        int j;
+        for (j=0;i<n;j++,i++)
+            u[j]=u[i];
+        n=j;
+        }
+    (*n0)=n;
     }
 
 
@@ -1630,3 +1767,46 @@ int hexcolor(char *s)
     }
 
 
+
+
+void xstrncpy(char *d,char *s,int nmax)
+
+    {
+    strncpy(d,s,nmax);
+    d[nmax]='\0';
+    }
+
+
+void xstrncat(char *d,char *s,int nmax)
+
+    {
+    int len;
+
+    len=strlen(d);
+    xstrncpy(&d[len],s,nmax-len);
+    }
+
+
+/*
+** dst buf needs 4/3 the bytes that src buf has
+*/
+int base64_encode(unsigned char *dst,unsigned char *src,int n)
+
+    {
+    int i,j;
+
+    for (j=i=0;i<n;i+=3)
+        {
+        static char *b64="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        int sb1,sb2,sb3;
+
+        sb1=src[i];
+        sb2=i<n-1?src[i+1]:0;
+        sb3=i<n-2?src[i+2]:0;
+        dst[j++]=b64[sb1>>2];
+        dst[j++]=b64[((sb1&3)<<4)|(sb2>>4)];
+        dst[j++]=i<n-1?b64[((sb2&0xf)<<2)|(sb3>>6)]:'=';
+        dst[j++]=i<n-2?b64[sb3&0x3f]:'=';
+        }
+    return(j);
+    }

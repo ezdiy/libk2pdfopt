@@ -3,7 +3,7 @@
 **
 ** Part of willus.com general purpose C code library.
 **
-** Copyright (C) 2016  http://willus.com
+** Copyright (C) 2020  http://willus.com
 **
 ** This program is free software: you can redistribute it and/or modify
 ** it under the terms of the GNU Affero General Public License as
@@ -17,15 +17,6 @@
 **
 ** You should have received a copy of the GNU Affero General Public License
 ** along with this program.  If not, see <http://www.gnu.org/licenses/>.
-**
-*/
-
-/*
-** IMPORTANT!!
-**
-** NEEDS SPECIAL VERSION OF ZLIB WITH CUSTOM MODES--SEE gzflags BELOW!
-** SEE gzwrite.c and gzlib.c in zlib_mod FOLDER.
-** (SEARCH FOR "WILLUS MOD" IN FILES.)
 **
 */
 
@@ -67,8 +58,9 @@ typedef struct
     double nextchar;
     } WILLUSCHARINFO;
 
-
-
+#define ABOVEBASEMEAN 0.6
+#define WIDTHMEAN     0.45
+#define NEXTCHARMEAN  0.12
 
 static WILLUSCHARINFO Helvetica[224] =
     {
@@ -579,10 +571,6 @@ void pdffile_add_bitmap(PDFFILE *pdf,WILLUSBITMAP *bmp,double dpi,int quality,in
 /*
 ** Use quality=-1 for PNG
 **
-** NEEDS SPECIAL VERSION OF ZLIB WITH CUSTOM MOD--SEE gzflags BELOW!
-** SEE gzwrite.c and gzlib.c in zlib_mod FOLDER.
-** (SEARCH FOR "WILLUS MOD" IN FILES.)
-**
 ** If quality < 0, the deflate (PNG-style) method is used.
 **
 ** halfsize==0 for 8-bits per color plane
@@ -607,6 +595,7 @@ void pdffile_add_bitmap_with_ocrwords(PDFFILE *pdf,WILLUSBITMAP *bmp,double dpi,
     double pw,ph;
     int ptr1,ptr2,ptrlen,showbitmap,nf;
     WILLUSCHARMAPLIST *cmaplist,_cmaplist;
+
 /*
 {
 int i;
@@ -1509,7 +1498,12 @@ static void ocrword_width_and_maxheight(OCRWORD *word,double *width,double *maxh
     willus_mem_alloc_warn((void **)&d,sizeof(int)*n,funcname,10);
     n=utf8_to_unicode(d,word->text,n-1);
     (*width)=0.;
-    (*maxheight)=0.;
+    /*
+    ** 7-10-2020--return a standard height for all chars for better
+    **            selection consistency.
+    */
+    /* (*maxheight)=0.; */
+    (*maxheight)=0.65;
     for (i=0;i<n;i++)
         {
         int c,cid,index;
@@ -1527,14 +1521,32 @@ static void ocrword_width_and_maxheight(OCRWORD *word,double *width,double *maxh
         c=cid-32;
         if (c<0 || c>=224)
             c=0;
+        /* 3-15-2020: Replace -1's in dataset with means */
+        /* Hoping to prevent bad text selection of certain unicode chars */
+        {
+        double w,nc,ab;
+
+        w=Helvetica[c].width;
+        nc=Helvetica[c].nextchar;
+        ab=Helvetica[c].abovebase;
+        if (w<=0.)
+            w=WIDTHMEAN;
+        if (nc<=0.)
+            nc=NEXTCHARMEAN+WIDTHMEAN;
+        if (ab<=0.)
+            ab=ABOVEBASEMEAN;
         if (word->text[i+1]=='\0')
-            (*width) += Helvetica[c].width;
+            (*width) += w;
         else
-            (*width) += Helvetica[c].nextchar;
+            (*width) += nc;
         if (charpos!=NULL)
             charpos[i]=(*width);
-        if (Helvetica[c].abovebase > (*maxheight))
-            (*maxheight)=Helvetica[c].abovebase;
+        /* 7-10-2020 -- see above */
+        /*
+        if (ab > (*maxheight))
+            (*maxheight)=ab;
+        */
+        }
         }
     /* Limit checks -- 7-21-2013 */
     if ((*width) < .01)
@@ -1768,14 +1780,14 @@ static void ocrword_to_pdf_stream(OCRWORD *word,FILE *f,double dpi,
 
 /*
 printf("word->text='%s'\n",word->text);
-printf("    wxh = %dx%d\n",word->w,word->h);
+printf("    wxh = %dx%d, dpi=%g\n",word->w,word->h,dpi);
 */
     n=strlen(word->text)+2;
     willus_mem_alloc_warn((void **)&d,sizeof(int)*n,funcname,10);
     n=utf8_to_unicode(d,word->text,n-1);
     ocrword_width_and_maxheight(word,&width_per_point,&height_per_point,cmaplist,NULL);
 /*
-printf("    word->maxheight=%g\n",word->maxheight);
+printf("    word->maxheight=%g, height_per_point=%g\n",word->maxheight,height_per_point);
 */
     if (word->w/10. < word->lcheight)
         wordw = 0.9*word->w;
