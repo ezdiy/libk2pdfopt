@@ -46,6 +46,10 @@
 #include "params.h"
 #include "blobs.h"
 //#include "simddetect.h"
+#ifndef ASSERT_HOSTXX
+#define ASSERT_HOSTXX ASSERT_HOST
+#endif
+
 #include "tesseractclass.h"
 /*
 #include "notdll.h"

@@ -11,7 +11,7 @@ WILLUSLIB_SRC = $(wildcard $(WILLUSLIB_DIR)/*.c)
 K2PDFOPTLIB_SRC = $(wildcard $(K2PDFOPTLIB_DIR)/*.c)
 KOPT_SRC = setting.c koptreflow.c koptcrop.c koptocr.c koptimize.c
 TESSERACT_DIR_SRC = $(TESSERACT_DIR)/src
-TESSCAPI_CFLAGS = -I$(MOD_INC) -I$(LEPTONICA_DIR)/src \
+TESSCAPI_CFLAGS = -I$(MOD_INC) -I$(TESSERACT_MOD) -I$(LEPTONICA_DIR)/src \
 	-I$(TESSERACT_DIR_SRC) -I$(TESSERACT_DIR_SRC)/api \
 	-I$(TESSERACT_DIR_SRC)/ccutil -I$(TESSERACT_DIR_SRC)/ccstruct \
 	-I$(TESSERACT_DIR_SRC)/image -I$(TESSERACT_DIR_SRC)/viewer \
