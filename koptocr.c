@@ -58,7 +58,7 @@ void k2pdfopt_tocr_single_word(WILLUSBITMAP *src,
 		int allow_spaces, int std_proc) {
 	k2pdfopt_tocr_init(datadir, lang);
 	if (tess_api != NULL) {
-		ocrtess_single_word_from_bmp8(tess_api,
+		ocrtess_from_bmp8(tess_api,
 				word, max_length, src,
 				x, y, x + w, y + h,
 				ocr_type, allow_spaces, std_proc, stderr);
@@ -219,7 +219,7 @@ l_int32 k2pdfopt_pixGetWordBoxesInTextlines(PIX *pixs,
     pixWordBoxesByDilation(pix1, maxsize, minwidth, minheight,
 			maxwidth, maxheight, &boxa1, NULL);
 	/* Generate a pixa of the word images */
-	pixa1 = pixaCreateFromBoxa(pix1, boxa1, NULL);  /* mask over each word */
+	pixa1 = pixaCreateFromBoxa(pix1, boxa1, 0, 0, NULL);  /* mask over each word */
 	/* Sort the bounding boxes of these words by line.  We use the
 	* index mapping to allow identical sorting of the pixa. */
 	baa = boxaSort2d(boxa1, &naa, -1, -1, 4);
