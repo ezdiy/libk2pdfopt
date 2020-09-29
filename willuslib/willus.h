@@ -189,6 +189,10 @@ typedef double  real;
 #endif
 #endif
 
+#if (defined(ANDROID) || defined(DARWIN))
+#undef WILLUS_HAVE_FILE64
+#endif
+
 /*
 ** As of 2013 and gcc 4.7.x, x87_line_math is turned off entirely.
 ** My x87 in-line routines are no faster than gcc on modern Intel CPUs.
@@ -225,7 +229,16 @@ typedef double  real;
 #if (defined(__linux) || defined(linux) || defined(__linux__))
 #define LINUX
 #if (defined(WILLUS_HAVE_FILE64) && !defined(_off64_t))
+#ifdef __off64_t
 #define _off64_t __off64_t
+#else
+/*
+** No, __off64_t exists, since we assume that we have a libc (like musl)
+** where off_t is always 64bit.
+** See: https://wiki.musl-libc.org/faq.html#Q:-Do-I-need-to-define-%3Ccode%3E_LARGEFILE64_SOURCE%3C/code%3E-to-get-64bit-%3Ccode%3Eoff_t%3C/code%3E%3F
+*/
+#define _off64_t off_t
+#endif
 #endif
 #endif
 
@@ -264,7 +277,7 @@ typedef double  real;
 #ifdef USE_CMAKE
 #include "config.h"
 #else /* USE_CMAKE */
-
+/*
 #ifndef HAVE_Z_LIB
 #define HAVE_Z_LIB
 #endif
@@ -286,6 +299,7 @@ typedef double  real;
 #ifndef HAVE_GOCR_LIB
 #define HAVE_GOCR_LIB
 #endif
+*/
 #ifndef HAVE_LEPTONICA_LIB
 #define HAVE_LEPTONICA_LIB
 #endif

@@ -24,6 +24,9 @@ int tess_capi_get_ocr_multiword(void *vapi,PIX *pix,int segmode,
                                 FILE *out);
 void tess_capi_end(void *api);
 
+const char* tess_capi_get_init_language(void *api);
+int tess_capi_get_word_boxes(void *api, PIX *pix, BOXA **out_boxa, int is_cjk, FILE *out);
+
 #ifdef __cplusplus
 }
 #endif
