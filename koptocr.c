@@ -60,7 +60,7 @@ void k2pdfopt_tocr_single_word(WILLUSBITMAP *src,
 	if (tess_api != NULL) {
 		ocrtess_from_bmp8(tess_api,
 				word, max_length, src,
-				x, y, x + w, y + h,
+				x, y, x + w, y + h, 100, //XXX 100dpi
 				ocr_type, allow_spaces, std_proc, stderr);
 	}
 }
