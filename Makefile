@@ -82,8 +82,8 @@ K2PDFOPT_LIB= libk2pdfopt$(if $(WIN32),-$(MAJVER).dll,$(if $(DARWIN),.$(MAJVER).
 ##############################################################################
 $(LEPTONICA_LIB):
 	cp -f $(LEPTONICA_MOD)/dewarp2.c $(LEPTONICA_DIR)/src/dewarp2.c
-	# leptonica 1.73 and up requires to run autobuild first
-	cd $(LEPTONICA_DIR) && ! test -f ./configure && sh ./autobuild || true
+	# leptonica 1.73 and up requires to run autogen.sh (renamed from autobuild since 1.80) first
+	cd $(LEPTONICA_DIR) && ! test -f ./configure && sh ./autogen.sh || true
 	cd $(LEPTONICA_DIR) && sh ./configure -q $(if $(EMULATE_READER),,--host $(HOST)) \
 		--prefix=$(LEPTONICA_DIR) \
 		CC='$(strip $(CCACHE) $(CC))' CFLAGS='$(LEPT_CFLAGS)' \
