@@ -103,7 +103,6 @@ endif
 
 $(TESSERACT_LIB): $(LEPTONICA_LIB)
 	cp -f $(TESSERACT_MOD)/tessdatamanager.cpp $(TESSERACT_DIR_SRC)/ccutil/tessdatamanager.cpp
-	cp -f $(TESSERACT_MOD)/tess_version.h $(TESSERACT_DIR_SRC)/api/tess_version.h
 	#-cd $(TESSERACT_DIR) && \
 	#	patch -N -p1 < $(TESSERACT_MOD)/baseapi.cpp.patch
 	cd $(TESSERACT_DIR) && ./autogen.sh && ./configure -q \
