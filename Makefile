@@ -10,14 +10,14 @@ K2PDFOPTLIB_DIR = k2pdfoptlib
 WILLUSLIB_SRC = $(wildcard $(WILLUSLIB_DIR)/*.c)
 K2PDFOPTLIB_SRC = $(wildcard $(K2PDFOPTLIB_DIR)/*.c)
 KOPT_SRC = setting.c koptreflow.c koptcrop.c koptocr.c koptimize.c
-
+TESSERACT_DIR_SRC = $(TESSERACT_DIR)/src
 TESSCAPI_CFLAGS = -I$(MOD_INC) -I$(LEPTONICA_DIR)/src \
-	-I$(TESSERACT_DIR) -I$(TESSERACT_DIR)/api \
-	-I$(TESSERACT_DIR)/ccutil -I$(TESSERACT_DIR)/ccstruct \
-	-I$(TESSERACT_DIR)/image -I$(TESSERACT_DIR)/viewer \
-    -I$(TESSERACT_DIR)/textord -I$(TESSERACT_DIR)/dict \
-    -I$(TESSERACT_DIR)/classify -I$(TESSERACT_DIR)/ccmain \
-    -I$(TESSERACT_DIR)/wordrec -I$(TESSERACT_DIR)/cutil
+	-I$(TESSERACT_DIR_SRC) -I$(TESSERACT_DIR_SRC)/api \
+	-I$(TESSERACT_DIR_SRC)/ccutil -I$(TESSERACT_DIR_SRC)/ccstruct \
+	-I$(TESSERACT_DIR_SRC)/image -I$(TESSERACT_DIR_SRC)/viewer \
+    -I$(TESSERACT_DIR_SRC)/textord -I$(TESSERACT_DIR_SRC)/dict \
+    -I$(TESSERACT_DIR_SRC)/classify -I$(TESSERACT_DIR_SRC)/ccmain \
+    -I$(TESSERACT_DIR_SRC)/wordrec -I$(TESSERACT_DIR_SRC)/cutil
 
 OBJS:=$(KOPT_SRC:%.c=%.o) \
 	$(K2PDFOPTLIB_SRC:%.c=%.o) \
@@ -81,7 +81,7 @@ K2PDFOPT_LIB= libk2pdfopt$(if $(WIN32),-$(MAJVER).dll,$(if $(DARWIN),.$(MAJVER).
 # Target file rules.
 ##############################################################################
 $(LEPTONICA_LIB):
-	cp -f $(LEPTONICA_MOD)/dewarp2.c $(LEPTONICA_DIR)/src/dewarp2.c
+	cp -f $(LEPTONICA_MOD)/*.[ch] $(LEPTONICA_DIR)/src/
 	# leptonica 1.73 and up requires to run autogen.sh (renamed from autobuild since 1.80) first
 	cd $(LEPTONICA_DIR) && ! test -f ./configure && sh ./autogen.sh || true
 	cd $(LEPTONICA_DIR) && sh ./configure -q $(if $(EMULATE_READER),,--host $(HOST)) \
@@ -102,9 +102,10 @@ else
 endif
 
 $(TESSERACT_LIB): $(LEPTONICA_LIB)
-	cp -f $(TESSERACT_MOD)/tessdatamanager.cpp $(TESSERACT_DIR)/ccutil/tessdatamanager.cpp
-	-cd $(TESSERACT_DIR) && \
-		patch -N -p1 < $(TESSERACT_MOD)/baseapi.cpp.patch
+	cp -f $(TESSERACT_MOD)/tessdatamanager.cpp $(TESSERACT_DIR_SRC)/ccutil/tessdatamanager.cpp
+	cp -f $(TESSERACT_MOD)/tess_version.h $(TESSERACT_DIR_SRC)/api/tess_version.h
+	#-cd $(TESSERACT_DIR) && \
+	#	patch -N -p1 < $(TESSERACT_MOD)/baseapi.cpp.patch
 	cd $(TESSERACT_DIR) && ./autogen.sh && ./configure -q \
 		$(if $(EMULATE_READER),,--host=$(HOST)) \
 		CXX='$(strip $(CCACHE) $(CXX))' \
@@ -118,9 +119,9 @@ $(TESSERACT_LIB): $(LEPTONICA_LIB)
 	cd $(TESSERACT_DIR) && sed -ie 's|-lstdc++||g' libtool
 	$(MAKE) -C $(TESSERACT_DIR)
 ifdef WIN32
-	cp -a $(TESSERACT_DIR)/api/.libs/libtesseract-3.dll ./
+	cp -a $(TESSERACT_DIR_DIR)/api/.libs/libtesseract-4.dll ./
 else
-	cp -a $(TESSERACT_DIR)/api/.libs/libtesseract$(if $(DARWIN),*.dylib,.so*) ./
+	cp -a $(TESSERACT_DIR_DIR)/api/.libs/libtesseract$(if $(DARWIN),*.dylib,.so*) ./
 endif
 
 tesseract_capi: $(TESSERACT_MOD)/tesscapi.cpp $(TESSERACT_LIB)
