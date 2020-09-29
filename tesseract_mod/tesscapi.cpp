@@ -45,7 +45,7 @@
 #include "strngs.h"
 #include "params.h"
 #include "blobs.h"
-#include "simddetect.h"
+//#include "simddetect.h"
 #include "tesseractclass.h"
 /*
 #include "notdll.h"
@@ -190,11 +190,12 @@ v4.00 loads either TESSERACT enginer, LSTM engine, or both.  No CUBE.
     */
     {
     char istr[1024];
-    static const char *simdtype[]={"FMA","AVX2","AVX","SSE",""};
-    int i,c,simd[4];
+    //static const char *simdtype[]={"FMA","AVX2","AVX","SSE",""};
+    //int i,c,simd[4];
 
 // printf("tessedit_ocr_engine_mode = %d\n",tessedit_ocr_engine_mode);
     sprintf(istr,"%s",api->Version());
+    /*
     simd[0]=tesseract::SIMDDetect::IsFMAAvailable();
     simd[1]=tesseract::SIMDDetect::IsAVX2Available();
     simd[2]=tesseract::SIMDDetect::IsAVXAvailable();
@@ -213,6 +214,7 @@ v4.00 loads either TESSERACT enginer, LSTM engine, or both.  No CUBE.
         }
     if (c>0)
         sprintf(&istr[strlen(istr)],"]");
+        */
     sprintf(&istr[strlen(istr)],"\n    Tesseract data folder = '%s'",datapath==NULL?getenv("TESSDATA_PREFIX"):datapath);
     strcat(istr,"\n    Tesseract languages: ");
     GenericVector<STRING> languages;

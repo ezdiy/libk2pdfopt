@@ -103,6 +103,8 @@ endif
 
 $(TESSERACT_LIB): $(LEPTONICA_LIB)
 	cp -f $(TESSERACT_MOD)/tessdatamanager.cpp $(TESSERACT_DIR_SRC)/ccutil/tessdatamanager.cpp
+	cp -f $(TESSERACT_MOD)/tess_version.h $(TESSERACT_DIR_SRC)/ccutil/
+	cp -f $(TESSERACT_MOD)/tess_version.h $(TESSERACT_DIR_SRC)/api/
 	#-cd $(TESSERACT_DIR) && \
 	#	patch -N -p1 < $(TESSERACT_MOD)/baseapi.cpp.patch
 	cd $(TESSERACT_DIR) && ./autogen.sh && ./configure -q \
@@ -118,9 +120,9 @@ $(TESSERACT_LIB): $(LEPTONICA_LIB)
 	cd $(TESSERACT_DIR) && sed -ie 's|-lstdc++||g' libtool
 	$(MAKE) -C $(TESSERACT_DIR)
 ifdef WIN32
-	cp -a $(TESSERACT_DIR_DIR)/api/.libs/libtesseract-4.dll ./
+	cp -a $(TESSERACT_DIR_SRC)/api/.libs/libtesseract-4.dll ./
 else
-	cp -a $(TESSERACT_DIR_DIR)/api/.libs/libtesseract$(if $(DARWIN),*.dylib,.so*) ./
+	cp -a $(TESSERACT_DIR_SRC)/api/.libs/libtesseract$(if $(DARWIN),*.dylib,.so*) ./
 endif
 
 tesseract_capi: $(TESSERACT_MOD)/tesscapi.cpp $(TESSERACT_LIB)
